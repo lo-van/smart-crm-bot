@@ -1,0 +1,8 @@
+venv/
+bot.db
+.env
+userbot_session.session
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
