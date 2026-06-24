@@ -110,4 +110,4 @@ WantedBy=multi-user.target```
 + Логи бота: `journalctl -u smart-crm-bot.service -f`
 + Логи веб‑панели: `journalctl -u smart-crm-web.service -f`
 + Настройка автотегирования: отправьте боту команду `/autotag`
-+ Подробнее о функциях бота читайте в [README.md]() и [INSTALL.md]()
++ Подробнее о функциях бота читайте в [README.md](README.md) и [INSTALL.md](INSTALL.md)
