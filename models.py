@@ -8,6 +8,9 @@ class User(Base):
     id = Column(Integer, primary_key=True)
     telegram_id = Column(BigInteger, unique=True, nullable=False)
     username = Column(String, nullable=True)
+    remind_interval_days = Column(Integer, default=3)          # раз в сколько дней напоминать
+    reminders_enabled = Column(Boolean, default=True)          # включены ли напоминания
+    last_remind_check_at = Column(DateTime, nullable=True)     # когда последний раз проверяли
     contacts = relationship("Contact", back_populates="owner", lazy="dynamic")
 
 class Contact(Base):
@@ -25,7 +28,7 @@ class Contact(Base):
     remind_interval_days = Column(Integer, default=30)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     last_synced_at = Column(DateTime, nullable=True)
-    remind_disabled = Column(Boolean, default=False)  # ← новый флаг
+    remind_disabled = Column(Boolean, default=False)
     owner = relationship("User", back_populates="contacts")
     messages = relationship("Message", back_populates="contact", lazy="dynamic")
 
