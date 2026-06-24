@@ -1,5 +1,6 @@
 venv/
 bot.db
+*.db
 .env
 userbot_session.session
 __pycache__/
