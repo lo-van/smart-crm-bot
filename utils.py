@@ -141,3 +141,17 @@ async def set_remind_disabled(contact_id: int, disabled: bool = True):
             await session.commit()
             return True
         return False
+
+async def update_user_settings(telegram_id: int, remind_interval_days: int = None,
+                               reminders_enabled: bool = None):
+    async with async_session() as session:
+        result = await session.execute(select(User).where(User.telegram_id == telegram_id))
+        user = result.scalar_one_or_none()
+        if not user:
+            return None
+        if remind_interval_days is not None:
+            user.remind_interval_days = remind_interval_days
+        if reminders_enabled is not None:
+            user.reminders_enabled = reminders_enabled
+        await session.commit()
+        return user

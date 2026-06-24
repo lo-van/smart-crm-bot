@@ -2,7 +2,8 @@ from aiogram import Router, F, Bot
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
 from keyboards import main_menu
-from utils import get_or_create_user, get_forgotten_contacts, get_contact_by_id, set_remind_disabled
+from utils import (get_or_create_user, get_forgotten_contacts,
+                   get_contact_by_id, set_remind_disabled, update_user_settings)
 from icebreaker import generate_icebreaker
 import asyncio
 from userbot import run_sync_for_user
@@ -12,11 +13,13 @@ router = Router()
 
 @router.message(Command("start"))
 async def cmd_start(message: Message):
-    await get_or_create_user(message.from_user.id, message.from_user.username)
+    user = await get_or_create_user(message.from_user.id, message.from_user.username)
     await message.answer(
         "Привет! Я твоя умная CRM для контактов.\n"
         "/sync – синхронизировать контакты и чаты\n"
         "/remind – забытые контакты\n"
+        "/remindset <дни> – установить интервал напоминаний (1-30)\n"
+        "/remindset on|off – включить/отключить напоминания\n"
         "Используй меню 👇",
         reply_markup=main_menu
     )
@@ -24,8 +27,12 @@ async def cmd_start(message: Message):
 @router.message(Command("help"))
 async def cmd_help(message: Message):
     await message.answer(
-        "Команды:\n/start – главное меню\n/sync – синхронизировать контакты и чаты из Telegram\n"
-        "/remind – показать, кому давно не писал\n/help – эта подсказка"
+        "Команды:\n"
+        "/start – главное меню\n"
+        "/sync – синхронизировать контакты и чаты из Telegram\n"
+        "/remind – показать, кому давно не писал\n"
+        "/remindset – настройки напоминаний\n"
+        "/help – эта подсказка"
     )
 
 @router.message(Command("sync"))
@@ -60,6 +67,38 @@ async def cmd_remind(message: Message):
     builder.adjust(2)
     await message.answer(text, reply_markup=builder.as_markup())
 
+@router.message(Command("remindset"))
+async def cmd_remindset(message: Message):
+    args = message.text.split()
+    user = await get_or_create_user(message.from_user.id, message.from_user.username)
+    if len(args) < 2:
+        await message.answer(
+            f"Текущие настройки:\n"
+            f"Интервал: {user.remind_interval_days} дн.\n"
+            f"Напоминания: {'включены' if user.reminders_enabled else 'отключены'}\n\n"
+            "Используйте:\n"
+            "/remindset 7 – раз в 7 дней\n"
+            "/remindset on – включить\n"
+            "/remindset off – отключить"
+        )
+        return
+
+    param = args[1].lower()
+    if param in ("on", "off"):
+        enabled = (param == "on")
+        await update_user_settings(user.telegram_id, reminders_enabled=enabled)
+        await message.answer(f"Напоминания {'включены' if enabled else 'отключены'}.")
+    else:
+        try:
+            days = int(param)
+            if days < 1 or days > 30:
+                await message.answer("Интервал должен быть от 1 до 30 дней.")
+                return
+            await update_user_settings(user.telegram_id, remind_interval_days=days)
+            await message.answer(f"Интервал напоминаний установлен: раз в {days} дн.")
+        except ValueError:
+            await message.answer("Неверный формат. Используйте число (1-30) или on/off.")
+
 @router.callback_query(F.data.startswith("mute_"))
 async def mute_contact(callback: CallbackQuery):
     contact_id = int(callback.data.split("_")[1])
@@ -70,7 +109,6 @@ async def mute_contact(callback: CallbackQuery):
         return
     await set_remind_disabled(contact_id, True)
     await callback.answer(f"Контакт {contact.name} исключён из напоминаний.", show_alert=True)
-    # Зачеркнём имя в тексте сообщения, не трогая клавиатуру
     new_text = callback.message.text.replace(f"• {contact.name} — ", f"~~• {contact.name}~~ — ")
     await callback.message.edit_text(new_text, reply_markup=callback.message.reply_markup)
 
