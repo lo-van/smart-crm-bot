@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Мои контакты</h1>
+<form method="get">
+    <input type="text" name="search" value="{{ search }}" placeholder="Поиск...">
+    <button type="submit">Найти</button>
+</form>
+<table>
+    <tr>
+        <th>Имя</th>
+        <th>Сфера</th>
+        <th>Теги</th>
+        <th>Последнее общение</th>
+        <th>Действия</th>
+    </tr>
+    {% for c in contacts %}
+    <tr>
+        <td>{{ c.name }}</td>
+        <td>{{ c.sphere or '' }}</td>
+        <td>{{ c.tags or '' }}</td>
+        <td>
+            {% if c.last_contacted_at %}
+                {% set delta = now - c.last_contacted_at.replace(tzinfo=timezone.utc) %}
+                {{ delta.days }} дн. назад
+            {% else %}
+                никогда
+            {% endif %}
+        </td>
+        <td><a href="/edit/{{ c.id }}">Редактировать</a></td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}
