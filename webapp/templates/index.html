@@ -10,22 +10,13 @@
         <th>Имя</th>
         <th>Сфера</th>
         <th>Теги</th>
-        <th>Последнее общение</th>
         <th>Действия</th>
     </tr>
     {% for c in contacts %}
     <tr>
         <td>{{ c.name }}</td>
-        <td>{{ c.sphere or '' }}</td>
-        <td>{{ c.tags or '' }}</td>
-        <td>
-            {% if c.last_contacted_at %}
-                {% set delta = now - c.last_contacted_at.replace(tzinfo=timezone.utc) %}
-                {{ delta.days }} дн. назад
-            {% else %}
-                никогда
-            {% endif %}
-        </td>
+        <td>{{ c.sphere }}</td>
+        <td>{{ c.tags }}</td>
         <td><a href="/edit/{{ c.id }}">Редактировать</a></td>
     </tr>
     {% endfor %}

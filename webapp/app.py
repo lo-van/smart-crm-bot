@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select, func
 from database import async_session, init_db
-from models import Contact, User, Message
+from models import Contact, User
 from webapp.auth import authenticate
 from datetime import datetime, timezone
 
@@ -16,7 +16,6 @@ templates = Jinja2Templates(directory="/opt/smart-crm-bot/webapp/templates")
 async def startup():
     await init_db()
 
-# ---------- Главная (список контактов) ----------
 @app.get("/", response_class=HTMLResponse)
 async def list_contacts(request: Request, search: str = "", username: str = Depends(authenticate)):
     async with async_session() as session:
@@ -31,13 +30,18 @@ async def list_contacts(request: Request, search: str = "", username: str = Depe
                 Contact.tags.ilike(f"%{search}%")
             )
         contacts = (await session.execute(query.order_by(Contact.created_at.desc()))).scalars().all()
+        # Преобразуем в словари для безопасной передачи
+        contact_dicts = [
+            {"id": c.id, "name": c.name, "sphere": c.sphere or "", "tags": c.tags or ""}
+            for c in contacts
+        ]
         return templates.TemplateResponse("index.html", {
-            "request": request, "contacts": contacts,
-            "search": search, "username": username,
-            "now": datetime.now(timezone.utc)
+            "request": request,
+            "contacts": contact_dicts,
+            "search": search,
+            "username": username
         })
 
-# ---------- Аналитика (текстовая) ----------
 @app.get("/analytics", response_class=HTMLResponse)
 async def analytics(request: Request, username: str = Depends(authenticate)):
     async with async_session() as session:
@@ -54,26 +58,33 @@ async def analytics(request: Request, username: str = Depends(authenticate)):
         top_forgotten = []
         for c in contacts:
             if c.last_contacted_at:
-                delta = (now - c.last_contacted_at.replace(tzinfo=timezone.utc)).days
+                if c.last_contacted_at.tzinfo is None:
+                    last = c.last_contacted_at.replace(tzinfo=timezone.utc)
+                else:
+                    last = c.last_contacted_at
+                delta = (now - last).days
             else:
                 delta = 9999
             top_forgotten.append((c.name, delta))
         top_forgotten.sort(key=lambda x: x[1], reverse=True)
         top_forgotten = top_forgotten[:10]
         return templates.TemplateResponse("analytics.html", {
-            "request": request, "username": username,
-            "sphere_counts": sphere_counts, "top_forgotten": top_forgotten
+            "request": request,
+            "username": username,
+            "sphere_counts": sphere_counts,
+            "top_forgotten": top_forgotten
         })
 
-# ---------- Редактирование контакта ----------
 @app.get("/edit/{contact_id}", response_class=HTMLResponse)
-async def edit_contact_form(contact_id: int, request: Request, username: str = Depends(authenticate)):
+async def edit_contact_form(request: Request, contact_id: int, username: str = Depends(authenticate)):
     async with async_session() as session:
         contact = await session.get(Contact, contact_id)
         if not contact:
             return HTMLResponse("Контакт не найден", status_code=404)
         return templates.TemplateResponse("edit_contact.html", {
-            "request": request, "contact": contact, "username": username
+            "request": request,
+            "contact": contact,
+            "username": username
         })
 
 @app.post("/edit/{contact_id}")
@@ -87,12 +98,10 @@ async def save_contact(contact_id: int, sphere: str = Form(""), tags: str = Form
             await session.commit()
     return RedirectResponse(f"/edit/{contact_id}", status_code=303)
 
-# ---------- Новый дашборд с графиками ----------
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request, username: str = Depends(authenticate)):
     return templates.TemplateResponse("dashboard.html", {"request": request, "username": username})
 
-# ---------- API для графиков ----------
 @app.get("/api/sphere_distribution")
 async def api_sphere_distribution(username: str = Depends(authenticate)):
     async with async_session() as session:
@@ -117,7 +126,11 @@ async def api_top_forgotten(username: str = Depends(authenticate)):
         data = []
         for c in contacts:
             if c.last_contacted_at:
-                delta = (now - c.last_contacted_at.replace(tzinfo=timezone.utc)).days
+                if c.last_contacted_at.tzinfo is None:
+                    last = c.last_contacted_at.replace(tzinfo=timezone.utc)
+                else:
+                    last = c.last_contacted_at
+                delta = (now - last).days
             else:
                 delta = 9999
             data.append({"name": c.name, "days": delta})
