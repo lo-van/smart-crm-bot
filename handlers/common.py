@@ -3,11 +3,15 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
 from keyboards import main_menu
 from utils import (get_or_create_user, get_forgotten_contacts,
-                   get_contact_by_id, set_remind_disabled, update_user_settings)
+                   get_contact_by_id, set_remind_disabled, update_user_settings,
+                   auto_tag_contact)
 from icebreaker import generate_icebreaker
 import asyncio
 from userbot import run_sync_for_user
 from datetime import datetime, timezone
+from models import Contact
+from database import async_session
+from sqlalchemy import select
 
 router = Router()
 
@@ -20,6 +24,7 @@ async def cmd_start(message: Message):
         "/remind – забытые контакты\n"
         "/remindset <дни> – установить интервал напоминаний (1-30)\n"
         "/remindset on|off – включить/отключить напоминания\n"
+        "/autotag – автоматически проставить сферы и теги\n"
         "Используй меню 👇",
         reply_markup=main_menu
     )
@@ -32,6 +37,7 @@ async def cmd_help(message: Message):
         "/sync – синхронизировать контакты и чаты из Telegram\n"
         "/remind – показать, кому давно не писал\n"
         "/remindset – настройки напоминаний\n"
+        "/autotag – автотегирование контактов\n"
         "/help – эта подсказка"
     )
 
@@ -82,7 +88,6 @@ async def cmd_remindset(message: Message):
             "/remindset off – отключить"
         )
         return
-
     param = args[1].lower()
     if param in ("on", "off"):
         enabled = (param == "on")
@@ -98,6 +103,21 @@ async def cmd_remindset(message: Message):
             await message.answer(f"Интервал напоминаний установлен: раз в {days} дн.")
         except ValueError:
             await message.answer("Неверный формат. Используйте число (1-30) или on/off.")
+
+@router.message(Command("autotag"))
+async def cmd_autotag(message: Message):
+    user = await get_or_create_user(message.from_user.id, message.from_user.username)
+    async with async_session() as session:
+        contacts = (await session.execute(
+            select(Contact).where(Contact.owner_id == user.id)
+        )).scalars().all()
+    if not contacts:
+        await message.answer("Нет контактов для обработки.")
+        return
+    await message.answer(f"Запущено автотегирование для {len(contacts)} контактов...")
+    for contact in contacts:
+        await auto_tag_contact(contact.id)
+    await message.answer("Автотегирование завершено.")
 
 @router.callback_query(F.data.startswith("mute_"))
 async def mute_contact(callback: CallbackQuery):

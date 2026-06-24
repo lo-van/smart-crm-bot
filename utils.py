@@ -155,3 +155,35 @@ async def update_user_settings(telegram_id: int, remind_interval_days: int = Non
             user.reminders_enabled = reminders_enabled
         await session.commit()
         return user
+
+from tag_rules import RULES
+
+async def auto_tag_contact(contact_id: int):
+    """Автоматически проставляет сферу и теги контакту на основе его сообщений."""
+    async with async_session() as session:
+        contact = await session.get(Contact, contact_id)
+        if not contact:
+            return
+        # Получаем текст последних 200 сообщений
+        messages = (await session.execute(
+            select(Message).where(Message.contact_id == contact_id).order_by(Message.timestamp.desc()).limit(200)
+        )).scalars().all()
+        text = " ".join([m.text or "" for m in messages]).lower()
+        if not text:
+            return
+        # Подсчитываем вхождения ключевых слов по каждой категории
+        scores = {}
+        for category, rule in RULES.items():
+            score = 0
+            for kw in rule["keywords"]:
+                score += text.count(kw.lower())
+            if score > 0:
+                scores[category] = score
+        if not scores:
+            return
+        # Выбираем категорию с максимальным счётом
+        best_category = max(scores, key=scores.get)
+        rule = RULES[best_category]
+        contact.sphere = rule["sphere"]
+        contact.tags = ", ".join(rule["tags"])
+        await session.commit()
