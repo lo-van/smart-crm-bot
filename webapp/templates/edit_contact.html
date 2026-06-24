@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Редактирование: {{ contact.name }}</h1>
+<form method="post">
+    <label>Сфера:</label><br>
+    <input type="text" name="sphere" value="{{ contact.sphere or '' }}" size="50"><br><br>
+    <label>Теги (через запятую):</label><br>
+    <input type="text" name="tags" value="{{ contact.tags or '' }}" size="50"><br><br>
+    <button type="submit">Сохранить</button>
+    <a href="/">Отмена</a>
+</form>
+{% endblock %}
